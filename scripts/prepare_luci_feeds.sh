@@ -31,9 +31,20 @@ if [ -e "$TREE/package/luci-theme-argon" ] && [ ! -L "$TREE/package/luci-theme-a
     exit 1
 fi
 ln -sfn "$ARGON" "$TREE/package/luci-theme-argon"
-./scripts/feeds update packages luci
+# Aurora theme + its config app: same single-package layout as argon,
+# so they are cloned and symlinked instead of being declared in feeds.conf.
+for repo in luci-theme-aurora luci-app-aurora-config; do
+    dest="$TREE/feeds/$repo"
+    if [ ! -d "$dest/.git" ]; then
+        git init "$dest"
+    fi
+    git -C "$dest" fetch --depth=1 "https://github.com/eamonxg/$repo.git" master
+    git -C "$dest" checkout -f --detach FETCH_HEAD
+    ln -sfn "$dest" "$TREE/package/$repo"
+done
+./scripts/feeds update -a
 sh "$P/port/scripts/apply-luci-patches.sh" "$TREE"
-printf '%s\n' "$PACKAGES" | xargs ./scripts/feeds install cgi-io luasrcdiet luci
+./scripts/feeds install -a
 # Existing build trees retain .config; select the new default there as well.
 sed -i '/^CONFIG_PACKAGE_luci-theme-argon=/d; /^# CONFIG_PACKAGE_luci-theme-argon is not set$/d; /^CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=/d; /^# CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn is not set$/d' .config
 printf '%s\n' 'CONFIG_PACKAGE_luci-theme-argon=y' 'CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=y' >> .config
